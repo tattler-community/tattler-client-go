@@ -198,6 +198,7 @@ func (n *TattlerClientHTTP) prepareHTTPRequest(urlstr string, body []byte) (*htt
 		return nil, nil, fmt.Errorf("failed to make tattler request with %v: %v", urlstr, reqerr)
 	}
 	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	request.Header.Set("Accept", "application/json")
 
 	client := &http.Client{}
 	client.Timeout = n.Timeout

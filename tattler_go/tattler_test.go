@@ -3,6 +3,9 @@ package tattler_go
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"regexp"
@@ -13,6 +16,51 @@ import (
 
 // Common API base to use in tests
 const api_base_test string = "http://127.0.0.1:11503/"
+
+func TestInvalidConfiguration(t *testing.T) {
+	params := make(map[string]string)
+	vectors := []string{"email"}
+
+	n := TattlerClientHTTP{
+		Endpoint: "  ",
+		Scope:    "testScope",
+		Mode:     "debug",
+	}
+	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err == nil {
+		t.Fatalf("SendNotification unexpectedly accepted invalid Endpoint config")
+	}
+
+	n = TattlerClientHTTP{
+		Endpoint: "http://localhost:11503",
+		Scope:    " ",
+		Mode:     "debug",
+	}
+	err = n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err == nil {
+		t.Fatalf("SendNotification unexpectedly accepted invalid Scope config")
+	}
+
+	n = TattlerClientHTTP{
+		Endpoint: "http://localhost:11503",
+		Scope:    "validscope",
+		Mode:     " ",
+	}
+	err = n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err == nil {
+		t.Fatalf("SendNotification unexpectedly accepted invalid Mode config (empty)")
+	}
+
+	n = TattlerClientHTTP{
+		Endpoint: "http://localhost:11503",
+		Scope:    "validscope",
+		Mode:     "unknown_mode",
+	}
+	err = n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err == nil {
+		t.Fatalf("SendNotification unexpectedly accepted invalid Mode config (unknown)")
+	}
+}
 
 func TestPrepareNotificationBasic(t *testing.T) {
 	n := TattlerClientHTTP{
@@ -231,5 +279,68 @@ func TestPersist(t *testing.T) {
 		if err == nil {
 			t.Fatalf("processResponse() fails to remove persisted task %v despite HTTP success response (%v)", taskname, expfname)
 		}
+	}
+}
+
+func TestSendNotificationWithBody(t *testing.T) {
+	// prepare server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/notification/myscope/my_important_event") {
+			t.Errorf("Expected to request configured endpoint '%v' got: %s", "/notification/myscope/my_important_event", r.URL.Path)
+		}
+		if !strings.Contains(r.URL.RawQuery, "user=456") {
+			t.Errorf("Expected to request delivery to user=456 got: %s", r.URL.RawQuery)
+		}
+		if !strings.Contains(r.URL.RawQuery, "mode=debug") {
+			t.Errorf("Expected to request delivery to mode=debug got: %s", r.URL.RawQuery)
+		}
+		if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+			t.Errorf("Expected Content-Type header to contain 'application/json', got: %s", r.Header.Get("Content-Type"))
+		}
+		if r.Header.Get("Accept") != "application/json" {
+			t.Errorf("Expected Accept: application/json header, got: %s", r.Header.Get("Accept"))
+		}
+		body, berr := io.ReadAll(r.Body)
+		if berr != nil {
+			t.Errorf("Expected some body, got nothing.")
+		}
+		var jbody map[string]interface{}
+		jerr := json.Unmarshal(body, &jbody)
+		if jerr != nil {
+			t.Errorf("Failed to JSON-parse request: %v", jerr)
+		}
+		val, ok := jbody["foo"]
+		if !ok {
+			t.Errorf("Expected param 'foo' in request body, not found. %v", jbody)
+		}
+		if val != "string" {
+			t.Errorf("Expected param 'foo'='string', got %v", val)
+		}
+		val, ok = jbody["bar"]
+		if !ok {
+			t.Errorf("Expected param 'bar' in request body, not found. %v", jbody)
+		}
+		if val != "2024-07-16T21:02:59Z" {
+			t.Errorf("Expected param 'bar'='2024-07-16T21:02:59Z', got %v", val)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"value":"fixed"}`))
+	}))
+	defer server.Close()
+
+	params := make(map[string]string)
+	params["foo"] = "string"
+	params["bar"] = "2024-07-16T21:02:59Z"
+	vectors := []string{"email"}
+
+	n := TattlerClientHTTP{
+		Endpoint: server.URL,
+		Scope:    "myscope",
+		Mode:     "debug",
+	}
+
+	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err != nil {
+		t.Fatalf("SendNotification unexpectedly rejected valid request with body: %v", err)
 	}
 }
