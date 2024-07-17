@@ -324,7 +324,7 @@ func TestSendNotificationWithBody(t *testing.T) {
 			t.Errorf("Expected param 'bar'='2024-07-16T21:02:59Z', got %v", val)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"value":"fixed"}`))
+		w.Write([]byte(`{"id":"email:49b99061-f5bc-4d58-9f79-fce37106877f","vector":"email","resultCode":0,"result":"success","detail":"OK"}`))
 	}))
 	defer server.Close()
 
