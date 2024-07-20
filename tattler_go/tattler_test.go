@@ -88,7 +88,7 @@ func TestPrepareNotificationBasic(t *testing.T) {
 	if !strings.Contains(url_have, mode_want) {
 		t.Fatalf("PrepareNotification() expected URL to contain '%v', got '%v'", mode_want, url_have)
 	}
-	vectors_want := fmt.Sprintf("vectors=%v", strings.ToLower(strings.Join(vectors, ",")))
+	vectors_want := fmt.Sprintf("vector=%v", strings.ToLower(strings.Join(vectors, ",")))
 	if !strings.Contains(url_have, vectors_want) {
 		t.Fatalf("PrepareNotification() expected to request vectors with '%v', instead '%v'", vectors_want, url_have)
 	}

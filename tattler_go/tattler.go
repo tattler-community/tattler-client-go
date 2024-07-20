@@ -92,11 +92,14 @@ func mkJSONContext(params map[string]string) ([]byte, error) {
 	return data, nil
 }
 
-// check whether a string is a valid vector name
-func vectorIsValid(vname string) bool {
-	vnameLower := strings.ToLower(strings.TrimSpace(vname))
-	matched, _ := regexp.MatchString("[a-z0-9_-]+", vnameLower)
-	return matched
+// normalize a vector name, if valid, else return false
+func normalizeVectorName(vname string) (string, bool) {
+	normalizedName := strings.ToLower(strings.TrimSpace(vname))
+	matched, _ := regexp.MatchString("^[a-z0-9_-]+$", normalizedName)
+	if !matched {
+		return "", false
+	}
+	return normalizedName, true
 }
 
 /*
@@ -139,9 +142,9 @@ func (c *TattlerClientHTTP) mkTattlerRequestURL(recipient string, event_name str
 	if len(vectors) > 0 {
 		// some vectors requested. Validate them
 		for _, v := range vectors {
-			vlowercase := strings.ToLower(v)
-			if vectorIsValid(vlowercase) {
-				validVectors = append(validVectors, vlowercase)
+			normvname, valid := normalizeVectorName(v)
+			if valid {
+				validVectors = append(validVectors, normvname)
 			} else {
 				golog.Warnf("SendNotification() of %v to %v requests invalid vector %v; ignoring", event_name, recipient, v)
 			}
