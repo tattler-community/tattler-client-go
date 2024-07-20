@@ -1,16 +1,24 @@
 /*
-Package tattler_go implements a GO client for notification server tattler -- see https://tattler.dev.
+tattler_go is a Go client for tattler.dev.
+It marshals and delivers notification requests via tattler's REST API, see https://tattler.dev .
+It supports local persistency to reliably occurrences where tattler server cannot be reached.
+
 Basic usage:
 
 	notifcli := TattlerClientHTTP{
 		Scope:		"mybillingsystem",
 		Timeout:	5000,
 		Endpoint: 	"http://localhost:11503/notification",
+		Mode:		"production",
 	}
 	myContext := make(map[string]string)
 	myContext["amount"] = "10.20"
 	myContext["invoice_number"] = "20230512"
 	err := notifcli.SendNotification("7598", "new_invoice_created", myContext)
+
+Notice that "Mode" defaults to "debug", so notifications are sent to the debug address
+instead of the requested recipient, unless explicitly changed. Find details at
+https://docs.tattler.dev/en/latest/keyconcepts/mode.html .
 
 This module supports persistency. If enabled, then notification attempts are stored
 in TattlerClientHTTP.PersistencyDir, and only removed if the notification succeeded.
