@@ -345,6 +345,40 @@ func TestSendNotificationWithBody(t *testing.T) {
 	}
 }
 
+func TestDefaultMode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, berr := io.ReadAll(r.Body)
+		if berr != nil {
+			t.Errorf("Expected some body, got nothing.")
+		}
+		var jbody map[string]interface{}
+		jerr := json.Unmarshal(body, &jbody)
+		if jerr != nil {
+			t.Errorf("Failed to JSON-parse request: %v", jerr)
+		}
+		val, ok := jbody["debug"]
+		if ok && val != "debug" {
+			t.Errorf("Mode expected to either be omitted, or specified as 'debug', instead got '%v'", val)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"email:49b99061-f5bc-4d58-9f79-fce37106877f","vector":"email","resultCode":0,"result":"success","detail":"OK"}`))
+	}))
+	defer server.Close()
+
+	n := TattlerClientHTTP{
+		Endpoint: server.URL,
+		Scope:    "myscope",
+	}
+
+	params := make(map[string]string)
+	vectors := []string{}
+
+	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err != nil {
+		t.Fatalf("SendNotification unexpectedly rejected valid request with body: %v", err)
+	}
+}
+
 func TestSendNotificationError(t *testing.T) {
 	params := make(map[string]string)
 	params["foo"] = "string"
@@ -354,7 +388,6 @@ func TestSendNotificationError(t *testing.T) {
 	n := TattlerClientHTTP{
 		Endpoint: " invalid  / url!",
 		Scope:    "myscope",
-		Mode:     "debug",
 	}
 
 	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
