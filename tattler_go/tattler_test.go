@@ -397,7 +397,7 @@ func TestSendNotificationSkipsInvalidVectors(t *testing.T) {
 	}
 
 	params := make(map[string]string)
-	vectors := []string{"valid1", "v2", " valid3", "in valid"}
+	vectors := []string{"valid1", "v2", " valid3", "in valid", "more!invalid", "m'oore", "%", "", " "}
 
 	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
 	if err != nil {
