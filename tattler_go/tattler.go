@@ -41,6 +41,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -73,12 +74,6 @@ var NotificationModes = []string{"production", "staging", "debug"}
 // Notification mode to use when no custom mode is requested
 const DefaultMode string = "debug"
 
-// List of supported vector types
-var VectorTypes = []string{"email", "sms", "telegram"}
-
-// List of vectors to deliver to when no vector is requested
-var DefaultVectorTypes []string = VectorTypes
-
 // Returns the position of an item in a slice, or -1 if not found
 func find(haystack []string, needle string) int {
 	for i, v := range haystack {
@@ -95,6 +90,13 @@ func mkJSONContext(params map[string]string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to make JSON for params: %v", err)
 	}
 	return data, nil
+}
+
+// check whether a string is a valid vector name
+func vectorIsValid(vname string) bool {
+	vnameLower := strings.ToLower(strings.TrimSpace(vname))
+	matched, _ := regexp.MatchString("[a-z0-9_-]+", vnameLower)
+	return matched
 }
 
 /*
@@ -138,7 +140,7 @@ func (c *TattlerClientHTTP) mkTattlerRequestURL(recipient string, event_name str
 		// some vectors requested. Validate them
 		for _, v := range vectors {
 			vlowercase := strings.ToLower(v)
-			if find(VectorTypes, vlowercase) != -1 {
+			if vectorIsValid(vlowercase) {
 				validVectors = append(validVectors, vlowercase)
 			} else {
 				golog.Warnf("SendNotification() of %v to %v requests invalid vector %v; ignoring", event_name, recipient, v)
@@ -149,7 +151,7 @@ func (c *TattlerClientHTTP) mkTattlerRequestURL(recipient string, event_name str
 	queryParams["mode"] = c.Mode
 	queryParams["user"] = recipient
 	if len(validVectors) > 0 {
-		queryParams["vectors"] = strings.Join(validVectors, ",")
+		queryParams["vector"] = strings.Join(validVectors, ",")
 	}
 	correlationId = strings.TrimSpace(correlationId)
 	if correlationId != "" {

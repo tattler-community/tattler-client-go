@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -373,6 +374,37 @@ func TestDefaultMode(t *testing.T) {
 	}
 }
 
+func TestSendNotificationSkipsInvalidVectors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		qrparams, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+			t.Errorf("Failed to parse query '%v'", r.URL.RawQuery)
+		}
+		if !qrparams.Has("vector") {
+			t.Errorf("Expected param 'vector' missing from '%v'", r.URL.RawQuery)
+		}
+		if qrparams.Get("vector") != "valid1,v2,valid3" {
+			t.Errorf("Param 'vector' expected 'valid1,v2,valid3' but got '%v'", qrparams.Get("vector"))
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"email:49b99061-f5bc-4d58-9f79-fce37106877f","vector":"email","resultCode":0,"result":"success","detail":"OK"}`))
+	}))
+	defer server.Close()
+
+	n := TattlerClientHTTP{
+		Endpoint: server.URL,
+		Scope:    "myscope",
+	}
+
+	params := make(map[string]string)
+	vectors := []string{"valid1", "v2", " valid3", "in valid"}
+
+	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err != nil {
+		t.Fatalf("SendNotification unexpectedly rejected valid request with body: %v", err)
+	}
+
+}
 
 func TestSendNotificationError(t *testing.T) {
 	params := make(map[string]string)
