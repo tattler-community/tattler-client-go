@@ -1,21 +1,21 @@
 /*
-Package tattler_go implements a GO client to the tattler notification service.
+Package tattler_go implements a GO client for notification server tattler -- see https://tattler.dev.
 Basic usage:
 
 	notifcli := TattlerClientHTTP{
 		Scope:		"mybillingsystem",
-		Endpoint: 	"http://localhost:11503/notification",
 		Timeout:	5000,
+		Endpoint: 	"http://localhost:11503/notification",
 	}
 	myContext := make(map[string]string)
 	myContext["amount"] = "10.20"
 	myContext["invoice_number"] = "20230512"
 	err := notifcli.SendNotification("7598", "new_invoice_created", myContext)
 
-This module supports persistency. If enabled, then
-notification attempts are stored in TattlerClientHTTP.PersistencyDir, and only
-removed if the notification succeeded. This allows replaying failed subscriptions
-ex-post.
+This module supports persistency. If enabled, then notification attempts are stored
+in TattlerClientHTTP.PersistencyDir, and only removed if the notification succeeded.
+This preserves notifications sent while the server was unreachable, and allows
+replaying failed deliveries after the fact.
 
 Persistency is organized as follows: each uncompleted notification attempt is stored
 as a pair of files (cache keys), named:
