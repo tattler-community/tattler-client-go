@@ -344,3 +344,52 @@ func TestSendNotificationWithBody(t *testing.T) {
 		t.Fatalf("SendNotification unexpectedly rejected valid request with body: %v", err)
 	}
 }
+
+func TestSendNotificationError(t *testing.T) {
+	params := make(map[string]string)
+	params["foo"] = "string"
+	params["bar"] = "2024-07-16T21:02:59Z"
+	vectors := []string{"email"}
+
+	n := TattlerClientHTTP{
+		Endpoint: " invalid  / url!",
+		Scope:    "myscope",
+		Mode:     "debug",
+	}
+
+	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err == nil {
+		t.Fatalf("SendNotification unexpectedly accepted invalid API Endpoing '%v'", n.Endpoint)
+	}
+}
+
+func TestSendNotificationServerError(t *testing.T) {
+	params := make(map[string]string)
+	vectors := []string{"email"}
+
+	n := TattlerClientHTTP{
+		Endpoint: "",
+		Scope:    "myscope",
+		Mode:     "debug",
+	}
+
+	for _, statusCode := range []int{
+		http.StatusBadRequest,
+		http.StatusBadGateway,
+		http.StatusGatewayTimeout,
+		http.StatusInternalServerError,
+	} {
+		// prepare server
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(statusCode)
+		}))
+
+		n.Endpoint = server.URL
+
+		err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+		server.Close()
+		if err == nil {
+			t.Fatalf("SendNotification unexpectedly succeeded upon server error %v", statusCode)
+		}
+	}
+}
