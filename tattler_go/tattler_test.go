@@ -205,10 +205,7 @@ func TestPreparedClientTimeout(t *testing.T) {
 	params := make(map[string]string)
 	params["foo"] = "bar"
 	nurl, nbody, _, _ := n.PrepareNotification("636", "ev", params, []string{}, "")
-	req, cli, rerr := n.prepareHTTPRequest(nurl, nbody)
-	if rerr != nil {
-		t.Fatalf("prepareHTTPRequest() unexpectedly failed with '%v'", rerr)
-	}
+	req, cli := n.prepareHTTPRequest(nurl, nbody)
 	cthead := req.Header.Get("Content-Type")
 	if !strings.HasPrefix(cthead, "application/json") {
 		t.Fatalf("prepareHTTPRequest() has wrong Content-Type header '%v' instead of 'application/json'", cthead)
@@ -280,6 +277,32 @@ func TestPersist(t *testing.T) {
 		if err == nil {
 			t.Fatalf("processResponse() fails to remove persisted task %v despite HTTP success response (%v)", taskname, expfname)
 		}
+	}
+}
+
+func TestPersistErrorDoesNotPreventDelivery(t *testing.T) {
+	req_called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req_called = true
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"email:49b99061-f5bc-4d58-9f79-fce37106877f","vector":"email","resultCode":0,"result":"success","detail":"OK"}`))
+	}))
+
+	// cache requested on invalid path
+	n := TattlerClientHTTP{
+		Endpoint:       server.URL,
+		Scope:          "testScope",
+		PersistencyDir: path.Join("var", "empty"),
+	}
+	params := make(map[string]string)
+	vectors := []string{"email"}
+
+	err := n.SendNotification("456", "my_important_event", params, vectors, "corrid123")
+	if err != nil {
+		t.Fatalf("SendNotification unexpectedly failed request after failing to persist task during preparation: %v", err)
+	}
+	if !req_called {
+		t.Fatalf("SendNotification did not call server after failing to persist task during preparation")
 	}
 }
 
@@ -403,7 +426,6 @@ func TestSendNotificationSkipsInvalidVectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendNotification unexpectedly rejected valid request with body: %v", err)
 	}
-
 }
 
 func TestSendNotificationError(t *testing.T) {

@@ -85,10 +85,8 @@ func find(haystack []string, needle string) int {
 }
 
 func mkJSONContext(params map[string]string) ([]byte, error) {
-	data, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make JSON for params: %v", err)
-	}
+	// cannot fail, because map[string]string is always convertible
+	data, _ := json.Marshal(params)
 	return data, nil
 }
 
@@ -133,7 +131,7 @@ func (c *TattlerClientHTTP) ValidateConfiguration() error {
 	return nil
 }
 
-func (c *TattlerClientHTTP) mkTattlerRequestURL(recipient string, event_name string, params map[string]string, vectors []string, correlationId string) (string, error) {
+func (c *TattlerClientHTTP) mkTattlerRequestURL(recipient string, event_name string, vectors []string, correlationId string) (string, error) {
 	if err := c.ValidateConfiguration(); err != nil {
 		return "", fmt.Errorf("validating configuration failed: %v", err)
 	}
@@ -183,17 +181,14 @@ func (n *TattlerClientHTTP) PrepareNotification(recipient string, event_name str
 	}
 
 	// URL
-	urlstr, urlerr := n.mkTattlerRequestURL(recipient, event_name, params, vectors, correlationId)
+	urlstr, urlerr := n.mkTattlerRequestURL(recipient, event_name, vectors, correlationId)
 	if urlerr != nil {
 		return "", nil, "", fmt.Errorf("failed to assemble URL for notification server: %v", urlerr)
 	}
 	golog.Debugf("Prepared tattler URL=%v", urlstr)
 
 	// Body
-	body, err := mkJSONContext(params)
-	if err != nil {
-		return "", nil, "", fmt.Errorf("failed to encode params: %v", err)
-	}
+	body, _ := mkJSONContext(params)
 	golog.Debugf("Prepared body for notification server of %v bytes='%v'", len(body), body)
 
 	taskname, persisterr := n.PersistTask(urlstr, body)
@@ -204,19 +199,16 @@ func (n *TattlerClientHTTP) PrepareNotification(recipient string, event_name str
 	return urlstr, body, taskname, nil
 }
 
-func (n *TattlerClientHTTP) prepareHTTPRequest(urlstr string, body []byte) (*http.Request, *http.Client, error) {
-	// request
-	request, reqerr := http.NewRequest("POST", urlstr, bytes.NewBuffer(body))
-	if reqerr != nil {
-		return nil, nil, fmt.Errorf("failed to make tattler request with %v: %v", urlstr, reqerr)
-	}
+func (n *TattlerClientHTTP) prepareHTTPRequest(urlstr string, body []byte) (*http.Request, *http.Client) {
+	// request cannot fail, because urlstr was already validated
+	request, _ := http.NewRequest("POST", urlstr, bytes.NewBuffer(body))
 	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	request.Header.Set("Accept", "application/json")
 
 	client := &http.Client{}
 	client.Timeout = n.Timeout
 
-	return request, client, nil
+	return request, client
 }
 
 func (n *TattlerClientHTTP) processResponse(statusCode int, statusText string, urlstr string, body []byte, taskname string) error {
@@ -247,10 +239,7 @@ func (n *TattlerClientHTTP) SendNotification(recipient string, event_name string
 		return fmt.Errorf("failed to prepare tattler request: %v", berr)
 	}
 
-	request, client, rerr := n.prepareHTTPRequest(urlstr, body)
-	if rerr != nil {
-		return fmt.Errorf("failed to prepare request: %v", rerr)
-	}
+	request, client := n.prepareHTTPRequest(urlstr, body)
 	resp, resperr := client.Do(request)
 	if resperr != nil {
 		return fmt.Errorf("failed to request tattler %v: %v", urlstr, resperr)
@@ -307,4 +296,13 @@ func (n *TattlerClientHTTP) ClearTask(taskname string) error {
 	}
 	golog.Infof("Task %v successfully cleared from journal.")
 	return nil
+}
+
+// iterate over persisted tasks and request delivery to tattler.
+// Tasks older than maxAge are ignored.
+// Tasks that could be successfully delivered are discarded unless removeDone is set to false.
+// Returns the number of tasks found, sent, ignored. Or non-nil error upon failure
+func (n *TattlerClientHTTP) ReplayOutstandingTasks(maxAge time.Duration, removeDone bool) (uint, uint, uint, error) {
+
+	return 0, 0, 0, nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"testing"
 	"time"
 )
@@ -68,6 +69,52 @@ func TestGetInstanceOnInvalidPath(t *testing.T) {
 	fc2, err2 := GetInstance(fpath)
 	if err2 == nil || fc2 != nil {
 		log.Fatalf("Repeated call to GetInstance() unexpectedly returned success operating on inexisting path")
+	}
+}
+
+func TestListValidEmpty(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	defer os.Remove(fpath)
+	fc, err := GetInstance(fpath)
+	if err != nil {
+		t.Fatalf("GetInstance() failed to open path at %v: %v", fpath, err)
+	}
+	entries, _ := fc.List()
+	if len(entries) != 0 {
+		t.Errorf("List() returns non-0 entries on empty cache: %v", len(entries))
+	}
+}
+
+func TestListValidSome(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	defer os.Remove(fpath)
+	fc, err := GetInstance(fpath)
+	if err != nil {
+		t.Fatalf("GetInstance() failed to open path at %v: %v", fpath, err)
+	}
+	// add some items
+	wanted_items := []string{"a", "a1", "a2", "b", "b_url"}
+	for _, iname := range wanted_items {
+		fc.Set(iname, []byte(iname+"_body"))
+	}
+	// list result
+	entries, err := fc.List()
+	if err != nil {
+		t.Fatalf("List() fails with %v", err)
+	}
+	if len(entries) != len(wanted_items) {
+		t.Errorf("List() returns %v entries on cache with %v", len(entries), len(wanted_items))
+	}
+	for _, iname := range wanted_items {
+		if slices.Index(entries, iname) == -1 {
+			t.Errorf("List() returns %v which misses expected item '%v'", entries, iname)
+		}
 	}
 }
 

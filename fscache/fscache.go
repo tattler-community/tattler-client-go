@@ -58,6 +58,22 @@ func New(path string) (*FSCache, error) {
 	return c, nil
 }
 
+// List item names in cache.
+// Return the list of their names upon success, or a non-nil error upon failure.
+func (fc *FSCache) List() ([]string, error) {
+	entries, err := os.ReadDir(fc.path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan path '%v': %v", fc.path, err)
+	}
+	cacheEntries := make([]string, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			cacheEntries = append(cacheEntries, entry.Name())
+		}
+	}
+	return cacheEntries, nil
+}
+
 func (fc *FSCache) Set(key string, value []byte) error {
 	if fc == nil {
 		return fmt.Errorf("uninitialized filesystem cache given")
