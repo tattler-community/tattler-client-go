@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"slices"
 	"testing"
 	"time"
@@ -93,11 +94,12 @@ func TestListValidSome(t *testing.T) {
 	if derr != nil {
 		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
 	}
-	defer os.Remove(fpath)
 	fc, err := GetInstance(fpath)
 	if err != nil {
 		t.Fatalf("GetInstance() failed to open path at %v: %v", fpath, err)
 	}
+	defer fc.Clear()
+	defer os.Remove(fpath)
 	// add some items
 	wanted_items := []string{"a", "a1", "a2", "b", "b_url"}
 	for _, iname := range wanted_items {
@@ -118,6 +120,26 @@ func TestListValidSome(t *testing.T) {
 	}
 }
 
+func TestListDisappearedDirectory(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	fc, _ := GetInstance(fpath)
+
+	err := fc.Set("asd", []byte("asd"))
+	if err != nil {
+		t.Errorf("Set() unexpectedly fails: %v", err)
+	}
+	fc.Clear()
+	os.Remove(fpath)
+
+	_, err2 := fc.List()
+	if err2 == nil {
+		t.Errorf("List() on disappeared directory fails to return error")
+	}
+}
+
 func TestSetValid(t *testing.T) {
 	fpath, derr := os.MkdirTemp("", "test.*")
 	if derr != nil {
@@ -133,6 +155,45 @@ func TestSetValid(t *testing.T) {
 	err = fc.Set("foobar", []byte("x"))
 	if err != nil {
 		log.Fatalf("Set() for valid key='foobar' val='x' unexpectedly returns error %v", err)
+	}
+}
+
+func TestSetUninitializedError(t *testing.T) {
+	fc := &FSCache{}
+	fc = nil
+	err := fc.Set("a", []byte("b"))
+	if err == nil {
+		t.Errorf("Set() on uninitialized cache fails to return error")
+	}
+}
+
+func TestSetDisappearedDirectory(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	fc, _ := GetInstance(fpath)
+	fc.Clear()
+	os.Remove(fpath)
+
+	err := fc.Set("asd", []byte("asd"))
+	if err == nil {
+		t.Errorf("Set() on disappeared directory fails to return error")
+	}
+}
+
+func TestLenDisappearedDirectory(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	fc, _ := GetInstance(fpath)
+	fc.Clear()
+	os.Remove(fpath)
+
+	err := fc.Len()
+	if err != 0 {
+		t.Errorf("Len() on disappeared directory fails to return error")
 	}
 }
 
@@ -185,6 +246,33 @@ func TestGetExpiry(t *testing.T) {
 	if fc.GetExpiry("asdf", time.Duration(10)*time.Millisecond) != nil {
 		log.Fatalf("GetExpiry() returns value cached before the maxAge requested")
 	}
+}
+
+func TestGetPermissionDenied(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	defer os.Remove(fpath)
+	fc, _ := GetInstance(fpath)
+	defer fc.Clear()
+
+	err := fc.Set("foo", []byte("asd"))
+	if err != nil {
+		t.Fatalf("Set() failed with %v", err)
+	}
+
+	val := fc.Get("foo")
+	if val == nil {
+		t.Fatalf("Get() unexpectedly failed reading file with correct permissions")
+	}
+
+	os.Chmod(path.Join(fpath, "foo"), 0000)
+	val = fc.Get("foo")
+	if val != nil {
+		t.Fatalf("Get() unexpectedly succeeded reading file without permission")
+	}
+
 }
 
 func TestUnset(t *testing.T) {
