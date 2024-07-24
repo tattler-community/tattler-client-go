@@ -188,6 +188,53 @@ func TestSetPermissionDenied(t *testing.T) {
 	}
 }
 
+func TestClearDisappearedDirectory(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	fc, _ := GetInstance(fpath)
+	os.Remove(fpath)
+
+	err := fc.Clear()
+	if err == nil {
+		t.Errorf("Clear() unexpectedly succeeded upon disappeared directory")
+	}
+}
+
+func TestClearExpiredDisappearedDirectory(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	fc, _ := GetInstance(fpath)
+	fc.Clear()
+	os.Remove(fpath)
+
+	err := fc.ClearExpired(time.Duration(2) * time.Second)
+	if err == nil {
+		t.Errorf("ClearExpired() unexpectedly succeeded upon disappeared directory")
+	}
+}
+
+func TestClearExpiredPermissionDenied(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	defer os.Remove(fpath)
+	fc, _ := GetInstance(fpath)
+	defer fc.Clear()
+
+	fc.Set("foo", []byte("asd"))
+	os.Chmod(fpath, 0500)
+	os.Chmod(path.Join(fpath, "foo"), 0400)
+	err := fc.ClearExpired(time.Duration(0) * time.Second)
+	if err == nil {
+		t.Fatalf("ClearExpired() unexpectedly succeeded clearing file without permission")
+	}
+}
+
 func TestSetDisappearedDirectory(t *testing.T) {
 	fpath, derr := os.MkdirTemp("", "test.*")
 	if derr != nil {
@@ -293,7 +340,6 @@ func TestGetPermissionDenied(t *testing.T) {
 	if val != nil {
 		t.Fatalf("Get() unexpectedly succeeded reading file without permission")
 	}
-
 }
 
 func TestUnset(t *testing.T) {
