@@ -167,6 +167,27 @@ func TestSetUninitializedError(t *testing.T) {
 	}
 }
 
+func TestSetPermissionDenied(t *testing.T) {
+	fpath, derr := os.MkdirTemp("", "test.*")
+	if derr != nil {
+		t.Fatalf("Could not create tmpdir to test fscache: %v", derr)
+	}
+	defer os.Remove(fpath)
+	fc, _ := GetInstance(fpath)
+	defer fc.Clear()
+
+	err := fc.Set("foo", []byte("asd"))
+	if err != nil {
+		t.Fatalf("Set() failed with %v", err)
+	}
+
+	os.Chmod(fpath, 0500)
+	err = fc.Set("bar", []byte("newval"))
+	if err == nil {
+		t.Fatalf("Set() unexpectedly succeeded writing file without permission")
+	}
+}
+
 func TestSetDisappearedDirectory(t *testing.T) {
 	fpath, derr := os.MkdirTemp("", "test.*")
 	if derr != nil {
